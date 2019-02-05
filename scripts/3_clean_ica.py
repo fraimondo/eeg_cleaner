@@ -171,6 +171,8 @@ else:
     suffix = '-epo.fif'
     inst = _read_epochs(path, config)
     fname = inst.filename
+    if fname.endswith('-ica-epo.fif'):
+        suffix = '-ica-epo.fif'
 reject(path, inst)
 nname = icaname
 if icaname == 'auto':

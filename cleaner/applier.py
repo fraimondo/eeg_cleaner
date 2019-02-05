@@ -44,7 +44,9 @@ def reject(path, inst, required=False):
     if isinstance(inst, mne.io.BaseRaw):
         fname = op.basename(inst.filenames[0])
         t_log = logs['raws'].get(fname, {})
-        inst.info['bads'] = t_log.get('bads', [])
+        old_bads = t_log.get('bads', [])
+        mix_bads = list(set(old_bads + inst.info['bads']))
+        inst.info['bads'] = mix_bads
         logger.info(
             'Setting previous bad channels {}'.format(inst.info['bads']))
 
@@ -52,11 +54,13 @@ def reject(path, inst, required=False):
         fname = op.basename(inst.filename)
         t_log = logs['epochs'].get(fname, {})
         _check_epochs_params(inst, t_log)
-        inst.info['bads'] = t_log.get('bads', [])
+        old_bads = t_log.get('bads', [])
+        mix_bads = list(set(old_bads + inst.info['bads']))
+        inst.info['bads'] = mix_bads
         logger.info(
             'Setting previous bad channels {}'.format(inst.info['bads']))
 
-        prev_selection = t_log.get('selection', np.arange(len(inst)))
+        prev_selection = t_log.get('selection', inst.selection)
         to_drop = [x for x in inst.selection if x not in prev_selection]
         logger.info('Dropping previous bad epochs {}'.format(to_drop))
         inst.drop(to_drop, reason='Inspection')
@@ -64,7 +68,7 @@ def reject(path, inst, required=False):
         fname = op.basename(path)
         t_log = logs['icas'].get(fname, {})
         _check_ica_params(inst, t_log)
-        inst.exclude = t_log['exclude']
+        inst.exclude = t_log.get('exclude', [])
         logger.info('Excluding components: {}'.format(inst.exclude))
 
     return inst

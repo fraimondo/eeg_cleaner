@@ -147,6 +147,8 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
     n_random = 5
     n_epochs = 5
     for i_comp in range(ncomponents):
+        logger.info('Plotting component {} of {}'.format(
+            i_comp + 1, ncomponents))
         idx = np.random.randint(n_sources - n_epochs, size=n_random)
         fig, axes = plt.subplots(n_random, 1, figsize=(7, 4))
         for i, ax in zip(idx, axes):

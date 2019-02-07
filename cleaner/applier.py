@@ -70,7 +70,7 @@ def reject(path, inst, required=False):
                     drop_idx.append(cur_idx)
                 cur_idx += 1
         logger.info('Dropping previous bad epochs {}'.format(to_drop))
-        inst.drop(to_drop, reason='Inspection')
+        inst.drop(drop_idx, reason='Inspection')
     elif isinstance(inst, mne.preprocessing.ICA):
         fname = op.basename(path)
         t_log = logs['icas'].get(fname, {})

@@ -62,6 +62,13 @@ def reject(path, inst, required=False):
 
         prev_selection = t_log.get('selection', inst.selection)
         to_drop = [x for x in inst.selection if x not in prev_selection]
+        drop_idx = []
+        cur_idx = 0
+        for i_epoch, dlog in enumerate(inst.drop_log):
+            if len(dlog) == 0:
+                if i_epoch in to_drop:
+                    drop_idx.append(cur_idx)
+                cur_idx += 1
         logger.info('Dropping previous bad epochs {}'.format(to_drop))
         inst.drop(to_drop, reason='Inspection')
     elif isinstance(inst, mne.preprocessing.ICA):

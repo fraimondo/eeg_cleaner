@@ -2,7 +2,7 @@ import mne
 import numpy as np
 
 import mne
-
+from mne.utils import logger
 import matplotlib.pyplot as plt
 
 

@@ -167,6 +167,8 @@ if raw is True:
     suffix = '-raw.fif'
     inst = _read_raw(path, config)
     fname = inst.filenames[0]
+    if fname.endswith('-ica-raw.fif'):
+        suffix = '-ica-raw.fif'
 else:
     suffix = '-epo.fif'
     inst = _read_epochs(path, config)
@@ -176,12 +178,20 @@ else:
 reject(path, inst)
 nname = icaname
 if icaname == 'auto':
-    nname = op.basename(fname).replace(suffix, '-ica.fif')
+    if raw is True:
+        nname = op.basename(fname).replace(suffix, '-raw-ica.fif')
+    else:
+        nname = op.basename(fname).replace(suffix, '-epo-ica.fif')
 ica = _read_ica(op.join(op.dirname(path), nname), icaconfig)
+
+inst.pick_channels(ica.ch_names)
 
 rname = results
 if results == 'auto':
-    rname = fname.replace(suffix, '-ica.json')
+    if raw is True:
+        rname = fname.replace(suffix, '-raw-ica.json')
+    else:
+        rname = fname.replace(suffix, '-epo-ica.json')
 
 if interactive is False and results is not None:
     with open(rname, 'r') as f:

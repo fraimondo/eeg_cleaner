@@ -1,7 +1,8 @@
 import os.path as op
 import logging
 
-from mne.utils import logger, WrapStdOut, set_log_file
+from mne.utils import logger, set_log_file
+from mne.utils._logging import WrapStdOut
 
 def configure_logging(path):
     """Set format to file logging and add stdout logging

@@ -96,6 +96,9 @@ else:
     import nice_ext
     raws = nice_ext.api.read(path, config=config)
 
+if not path.endswith('/') and op.isdir(path):
+    path = '{}/'.format(path)
+
 if not isinstance(raws, list):
     raws = [raws]
 

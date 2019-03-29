@@ -37,7 +37,7 @@ from cleaner.utils import configure_logging, remove_file_logging
 # Option B: Interactive (slow)
 
 default_scaling = 75e-6
-default_nepochs = 10
+default_ncomps = 10
 
 parser = ArgumentParser(description='Clean a RAW (continous) file.')
 parser.add_argument('--path', metavar='path', nargs=1, type=str,
@@ -55,10 +55,10 @@ parser.add_argument('--scaling', metavar='scaling', type=float, nargs='?',
                     help=('Scaling to use when plotting EEG signals '
                           '(Default {})'.format(default_scaling)))
 
-parser.add_argument('--nepochs', metavar='nepochs', type=float, nargs='?',
-                    default=default_nepochs,
+parser.add_argument('--ncomps', metavar='ncomps', type=int, nargs='?',
+                    default=default_ncomps,
                     help=('Number of epochs to plot (default {})'.format(
-                        default_nepochs)))
+                        default_ncomps)))
 
 parser.add_argument('--config', metavar='config', type=str, nargs='?',
                     default=None,
@@ -93,7 +93,7 @@ args = parser.parse_args()
 path = args.path
 icaname = args.icaname
 scaling = args.scaling
-nepochs = args.nepochs
+ncomps = args.ncomps
 config = args.config
 icaconfig = args.icaconfig
 interactive = args.interactive
@@ -109,8 +109,8 @@ if isinstance(icaname, list):
 if isinstance(scaling, list):
     scaling = scaling[0]
 
-if isinstance(nepochs, list):
-    nepochs = nepochs[0]
+if isinstance(ncomps, list):
+    ncomps = ncomps[0]
 
 if isinstance(config, list):
     config = config[0]
@@ -206,7 +206,7 @@ elif interactive is True:
 
 else:
     reject(path, ica)
-    report = create_ica_report(ica, inst, nname)
+    report = create_ica_report(ica, inst, nname, ncomponents=ncomps)
     report_fname = op.basename(nname).replace('-ica.fif', 'ica-report.html')
     
     report.save(op.join(op.dirname(path), report_fname), 

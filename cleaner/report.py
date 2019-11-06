@@ -20,7 +20,7 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
 
     json_fname = filename.replace('.fif', '.json')
 
-    if ncomponents is None:
+    if ncomponents is None or ncomponents == -1:
         ncomponents = ica.n_components_
     else:
         ncomponents = min(ncomponents, ica.n_components_)

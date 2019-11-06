@@ -207,7 +207,7 @@ elif interactive is True:
 else:
     reject(path, ica)
     report = create_ica_report(ica, inst, nname, ncomponents=ncomps)
-    report_fname = op.basename(nname).replace('-ica.fif', 'ica-report.html')
+    report_fname = op.basename(nname).replace('-ica.fif', '-ica-report.html')
     
     report.save(op.join(op.dirname(path), report_fname), 
                 overwrite=True, open_browser=False)

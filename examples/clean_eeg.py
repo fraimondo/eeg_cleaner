@@ -6,53 +6,59 @@ from mne.utils import logger
 
 # 1. Run 1_clean_raw.py
 
-#  %run 1_clean_raw.py --path='/Users/fraimondo/data/birmingham/words/S03/S03_EB-raw.fif'
+#  %run 1_clean_raw.py --path='/Users/fraimondo/data/lg_controls/subjects/jaco/test-raw.fif'
 
 # 2. Filter and cut
 
-lpass = 45.
-hpass = 0.5
-n_jobs = -1
-tmin = -.5
-tmax = 2.
+import cleaner
+raw_fname = '/Users/fraimondo/data/lg_controls/subjects/jaco/test-raw.fif'
+raw = mne.io.read_raw_fif(raw_fname, preload=True)
+cleaner.reject(raw_fname, raw, required=True)
 
-picks = mne.pick_types(raw.info, eeg=True, meg=True, ecg=True, exclude=[])
-_filter_params = dict(method='iir',
-                        l_trans_bandwidth=0.1,
-                        iir_params=dict(ftype='butter', order=4))
-filter_params = [
-    dict(l_freq=hpass, h_freq=None,
-            iir_params=dict(ftype='butter', order=4)),
-    dict(l_freq=None, h_freq=lpass,
-            iir_params=dict(ftype='butter', order=8))
-]
+epochs = nice_ext.api.preprocess(raw, 'icm/lg/raw/egi')
 
-for fp in filter_params:
-    _filter_params2 = deepcopy(_filter_params)
-    if fp.get('method') == 'fft':
-        _filter_params2.pop('iir_params')
-    if isinstance(fp, dict):
-        _filter_params2.update(fp)
-    raw.filter(picks=picks, n_jobs=n_jobs, **_filter_params2)
+from sklearn.decomposition import PCA
+n_pca = 20
 
-notches = [50, 100, 200]
-logger.info('Notch filters at {}'.format(notches))
-raw.notch_filter(notches, method='fft', n_jobs=n_jobs)
 
-# This is for this specific files
-evt_samples = (raw.annotations.onset + 117) * raw.info['sfreq']
-evt_samples = evt_samples.astype(np.int)
+picks = mne.pick_types(epochs.info, meg=False, eeg=True, eog=False,
+                        stim=False, exclude='bads')
 
-evt_descriptions = [x.split('/')[-1] for x in raw.annotations.description]
+pca = mne.decoding.UnsupervisedSpatialFilter(PCA(n_pca), average=False)
+logger.info('Fitting PCA (n_pca = {})'.format(n_pca))
+pca_data = pca.fit_transform(epochs.get_data()[:, picks, :])
+blank = np.zeros((pca_data.shape[0], 2, pca_data.shape[2]))
+pca_data = np.concatenate([blank, pca_data], axis=1)
+ch_names = ['Blank1', 'Blank2']
+ch_names += ['PCA{}'.format(x) for x in range(n_pca)]
+ch_types = ['misc'] * len(ch_names)
+info = mne.create_info(ch_names, epochs.info['sfreq'], ch_types)
+for field in ['description', 'highpass', 'lowpass', 'meas_date',
+              'custom_ref_applied']:
+    info[field] = epochs.info[field]
+pca_epochs = mne.EpochsArray(pca_data, info)
+epochs.add_channels([pca_epochs])
 
-evt_types = {'s1': 1, 's2': 2, 's4': 4, 's16': 16, 's32': 32}
+epochs_fname = op.join(op.dirname(path), 'test-pca-epo.fif')
+epochs.save(epochs_fname)
 
-events = [[x, 0, evt_types[y]] for (x, y) in 
-            zip(evt_samples, evt_descriptions) if y in evt_types]
+# %run 2_clean_epochs.py --path='/Users/fraimondo/data/lg_controls/subjects/jaco/test-pca-epo.fif'
 
-events = np.array(events)
 
-baseline = (None, 0)
-epochs = mne.Epochs(raw, events, evt_types, tmin=tmin, tmax=tmax,
-                    preload=True, reject=None, picks=None,
-                    baseline=baseline, verbose=False)
+epochs = mne.read_epochs(epochs_fname)
+cleaner.reject(epochs_fname, epochs, required=True)
+epochs.pick_types(eeg=True, exclude=[])
+epochs_fname = epochs_fname.replace('-pca-epo.fif', '-ica-epo.fif')
+epochs.save(epochs_fname)
+
+picks = mne.pick_types(epochs.info, meg=False, eeg=True, eog=False,
+                        stim=False, exclude='bads')
+ica = mne.preprocessing.ICA(
+    n_components=0.99, max_pca_components=None, max_iter=512,
+    method='extended-infomax', verbose=True)
+ica.fit(epochs, picks=picks, verbose=True)
+ica_fname = epochs_fname.replace('-ica-epo.fif', '-epo-ica.fif')
+ica.save(ica_fname)
+
+
+# %run 3_clean_ica.py --path='/Users/fraimondo/data/lg_controls/subjects/jaco/test-ica-epo.fif' --icaname='auto'

@@ -10,25 +10,14 @@ To get the latest code using git, simply type::
 
     git clone git://github.com/fraimondo/eeg-cleaner.git
 
-If you don't have git installed, you can download a zip or tarball
-of the latest code: https://github.com/fraimondo/eeg-cleaner/archives/master
-
 Install cleaner
 ^^^^^^^^^^^^^^^^^^
 
-As any Python packages, to install NICE-EEG Cleaner, go in the source
+NICE-EEG cleaner must be installed in development mode, go in the source
 code directory and do::
 
-    python setup.py install
+    python setup.py develop
 
-or if you don't have admin access to your python setup (permission denied
-when install) use::
-
-    python setup.py install --user
-
-You can also install the latest latest development version with pip::
-
-    pip install -e git+https://github.com/fraimondo/eeg-cleaner#egg=cleaner-dev --user
 
 Dependencies
 ^^^^^^^^^^^^

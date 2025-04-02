@@ -21,12 +21,11 @@
 # applications.
 #
 
-import json
+from argparse import ArgumentParser
+from pathlib import Path
+
 import mne
 from mne.utils import logger
-import os.path as op
-
-from argparse import ArgumentParser
 
 from cleaner import reject, update_log
 from cleaner.utils import configure_logging, remove_file_logging
@@ -38,31 +37,63 @@ default_lpass = 40
 default_hpass = 1
 
 
-parser = ArgumentParser(description='Clean a RAW (continous) file.')
-parser.add_argument('--path', metavar='path', nargs=1, type=str,
-                    help='Path with the file or the subjects folder (if using '
-                          'NICE Extensions package).',
-                    required=True)
-    
-parser.add_argument('--scaling', metavar='scaling', type=float, nargs='?',
-                    default=default_scaling,
-                    help=('Scaling to use when plotting EEG signals '
-                          '(Default {})'.format(default_scaling)))
+parser = ArgumentParser(description="Clean a RAW (continous) file.")
+parser.add_argument(
+    "--path",
+    metavar="path",
+    nargs=1,
+    type=str,
+    help="Path with the file or the subjects folder (if using "
+    "NICE Extensions package).",
+    required=True,
+)
 
-parser.add_argument('--hpass', metavar='hpass', type=float, nargs='?',
-                    default=default_hpass,
-                    help=('Frequency of the High Pass filter. Used only for'
-                          'plotting. (Default {})'.format(default_hpass)))
+parser.add_argument(
+    "--scaling",
+    metavar="scaling",
+    type=float,
+    nargs="?",
+    default=default_scaling,
+    help=(
+        f"Scaling to use when plotting EEG signals (Default {default_scaling}"
+    ),
+)
 
-parser.add_argument('--lpass', metavar='lpass', type=float, nargs='?',
-                    default=default_lpass,
-                    help=('Frequency of the Low Pass filter. Used only for'
-                          'plotting. (Default {})'.format(default_lpass)))
+parser.add_argument(
+    "--hpass",
+    metavar="hpass",
+    type=float,
+    nargs="?",
+    default=default_hpass,
+    help=(
+        "Frequency of the High Pass filter. Used only for"
+        f"plotting. (Default {default_hpass})"
+    ),
+)
 
-parser.add_argument('--config', metavar='config', type=str, nargs='?',
-                    default=None,
-                    help=('NICE Extensions config to use for reading. '
-                          'Defaults to None (do not use NICE Extensions)'))
+parser.add_argument(
+    "--lpass",
+    metavar="lpass",
+    type=float,
+    nargs="?",
+    default=default_lpass,
+    help=(
+        "Frequency of the Low Pass filter. Used only for"
+        f"plotting. (Default {default_lpass})"
+    ),
+)
+
+parser.add_argument(
+    "--config",
+    metavar="config",
+    type=str,
+    nargs="?",
+    default=None,
+    help=(
+        "NICE Extensions config to use for reading. "
+        "Defaults to None (do not use NICE Extensions)"
+    ),
+)
 
 args = parser.parse_args()
 path = args.path
@@ -73,6 +104,8 @@ config = args.config
 
 if isinstance(path, list):
     path = path[0]
+
+path = Path(path)
 
 if isinstance(scaling, list):
     scaling = scaling[0]
@@ -87,36 +120,34 @@ if isinstance(config, list):
     config = config[0]
 
 configure_logging(path)
-logger.info('Started RAW cleaner')
+logger.info("Started RAW cleaner")
 
 if config is None:
     raws = mne.io.read_raw_fif(path, preload=True)
     fname = path
 else:
     import nice_ext
-    raws = nice_ext.api.read(path, config=config)
 
-if not path.endswith('/') and op.isdir(path):
-    path = '{}/'.format(path)
+    raws = nice_ext.api.read(path, config=config)
 
 if not isinstance(raws, list):
     raws = [raws]
 
 for t_raw in raws:
-    fname = op.basename(t_raw.filenames[0])
-    logger.info('Cleaning {}'.format(fname))
+    fname = t_raw.filenames[0].name
+    logger.info(f"Cleaning {fname}")
 
     # Mark previous bad channels
     reject(path, t_raw)
 
-    logger.info('Filtering {} - {}'.format(hpass, lpass))
+    logger.info(f"Filtering {hpass} - {lpass}")
     t_raw.filter(hpass, lpass)
-    
+
     # Plot
-    t_raw.plot(block=True, scalings={'eeg': scaling})
+    t_raw.plot(block=True, scalings={"eeg": scaling})
 
     # Save new channels
     update_log(path, t_raw)
 
-logger.info('Finished RAW cleaner')
+logger.info("Finished RAW cleaner")
 remove_file_logging()

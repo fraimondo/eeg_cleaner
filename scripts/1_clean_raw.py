@@ -95,6 +95,14 @@ parser.add_argument(
 )
 
 parser.add_argument(
+    "--nchans",
+    metavar="nchans",
+    default=20,
+    type=int,
+    help="Number of channels to plot. Default 20.",
+)
+
+parser.add_argument(
     "--redo",
     action="store_true",
     help=(
@@ -157,7 +165,7 @@ for t_fname in raws:
     t_raw.filter(hpass, lpass)
 
     # Plot
-    t_raw.plot(block=True, scalings={"eeg": scaling})
+    t_raw.plot(block=True, scalings={"eeg": scaling}, n_channels=args.nchans)
 
     # Save new channels
     update_log(t_fname, t_raw)

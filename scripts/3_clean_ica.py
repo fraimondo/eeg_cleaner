@@ -22,13 +22,13 @@
 #
 
 import json
+from argparse import ArgumentParser
+from pathlib import Path
+
 import mne
 from mne.utils import logger
-import os.path as op
 
-from argparse import ArgumentParser
-
-from cleaner import reject, update_log
+from cleaner import reject, update_log, is_cleaned
 from cleaner.report import create_ica_report
 from cleaner.utils import configure_logging, remove_file_logging
 
@@ -39,72 +39,100 @@ from cleaner.utils import configure_logging, remove_file_logging
 default_scaling = 75e-6
 default_ncomps = 10
 
-parser = ArgumentParser(description='Clean a RAW (continous) file.')
-parser.add_argument('--path', metavar='path', nargs=1, type=str,
-                    help='Path with the Epochs file or the subjects folder '
-                         '(if using NICE Extensions package).',
-                    required=True)
-
-parser.add_argument('--icaname', metavar='icaname', nargs=1, type=str,
-                    help='Name of the ICA file '
-                    '(if not using NICE Extensions package).',
-                    default=None)
-    
-parser.add_argument('--scaling', metavar='scaling', type=float, nargs='?',
-                    default=default_scaling,
-                    help=('Scaling to use when plotting EEG signals '
-                          '(Default {})'.format(default_scaling)))
-
-parser.add_argument('--ncomps', metavar='ncomps', type=int, nargs='?',
-                    default=default_ncomps,
-                    help=('Number of epochs to plot (default {})'.format(
-                        default_ncomps)))
-
-parser.add_argument('--config', metavar='config', type=str, nargs='?',
-                    default=None,
-                    help=('NICE Extensions config to use for reading Epochs. '
-                          'Defaults to None (do not use NICE Extensions)'))
+parser = ArgumentParser(description="Apply ICA and clean.")
+parser.add_argument(
+    "--path",
+    metavar="path",
+    nargs=1,
+    type=str,
+    help="Path with the file or the BIDS directory.",
+    required=True,
+)
 
 
-parser.add_argument('--icaconfig', metavar='icaconfig', type=str, nargs='?',
-                    default=None,
-                    help=('NICE Extensions config to use for reading ICA. '
-                          'Defaults to None (do not use NICE Extensions)'))
-
-parser.add_argument('--interactive', dest='interactive', default=False, 
-                    action='store_true', 
-                    help=('If True, plot ica sources and run in interactive '
-                          'mode. Otherwise, create a report. '
-                          '(Default is False)'))
+parser.add_argument(
+    "--scaling",
+    metavar="scaling",
+    type=float,
+    nargs="?",
+    default=default_scaling,
+    help=(f"Scaling to use when plotting EEG signals (Default {default_scaling})"),
+)
 
 
-parser.add_argument('--raw', dest='raw', default=False, 
-                    action='store_true', 
-                    help=('If True, read a raw file instead of an '
-                          'epochs files (Default is False).'))
+parser.add_argument(
+    "--ncomps",
+    metavar="ncomps",
+    type=int,
+    nargs="?",
+    default=default_ncomps,
+    help=f"Number of components to plot (default {default_ncomps})",
+)
 
-parser.add_argument('--results', metavar='results', type=str, nargs='?',
-                    default=None,
-                    help=('Path to the report results file to apply. '
-                          'If None and --interactive is not specified, '
-                          'the report will be created'))
+parser.add_argument(
+    "--pattern",
+    metavar="pattern",
+    type=str,
+    nargs="?",
+    default=None,
+    help=(
+        "Pattern to use to select the files. "
+        "If None, a default fif pattern will be used depending on the "
+        "data type (epochs or raw). "
+    ),
+)
+
+parser.add_argument(
+    "--interactive",
+    dest="interactive",
+    default=False,
+    action="store_true",
+    help=(
+        "If True, plot ica sources and run in interactive "
+        "mode. Otherwise, create a report. "
+        "(Default is False)"
+    ),
+)
+
+
+parser.add_argument(
+    "--raw",
+    dest="raw",
+    default=False,
+    action="store_true",
+    help=("If True, read a raw file instead of an epochs files (Default is False)."),
+)
+
+parser.add_argument(
+    "--apply",
+    dest="apply",
+    default=False,
+    action="store_true",
+    help=("If True, apply ICA and store a cleaned file."),
+)
+
+parser.add_argument(
+    "--redo",
+    action="store_true",
+    help=("If set, the script will redo the cleaning even if it has been done before."),
+)
+
 
 args = parser.parse_args()
 path = args.path
-icaname = args.icaname
 scaling = args.scaling
+pattern = args.pattern
 ncomps = args.ncomps
-config = args.config
-icaconfig = args.icaconfig
 interactive = args.interactive
 raw = args.raw
-results = args.results
+apply = args.apply
+redo = args.redo
 
 if isinstance(path, list):
     path = path[0]
 
-if isinstance(icaname, list):
-    icaname = icaname[0]
+if not isinstance(path, Path):
+    path = Path(path)
 
 if isinstance(scaling, list):
     scaling = scaling[0]
@@ -112,102 +140,89 @@ if isinstance(scaling, list):
 if isinstance(ncomps, list):
     ncomps = ncomps[0]
 
-if isinstance(config, list):
-    config = config[0]
-
 if isinstance(interactive, list):
     interactive = interactive[0]
 
-if isinstance(results, list):
-    results = results[0]
+if isinstance(pattern, list):
+    pattern = pattern[0]
 
 configure_logging(path)
-logger.info('Started ICA cleaner')
+logger.info("Started ICA cleaner")
 
 if interactive is True:
-    logger.info('Running in interactive mode')
-elif results is None:
-    logger.info('Creating ICA report')
+    logger.info("Running in interactive mode")
+elif apply is False:
+    logger.info("Creating ICA report")
 else:
-    logger.info('Applying ICA results from {}'.format(results))
-
-if icaname is None and icaconfig is None:
-    raise ValueError('Need the ICA file name or the NICE-Extensions config')
-
-epochs = None
-
-def _read_epochs(path, config):
-    if config is None:
-        epochs = mne.read_epochs(path, preload=True)
-        fname = path
-    else:
-        import nice_ext
-        epochs = nice_ext.api.read(path, config=config)
-    return epochs
+    logger.info("Applying ICA results")
 
 
-def _read_raw(path, config):
-    if config is None:
-        raw = mne.io.read_raw_fif(path, preload=True)
-        fname = path
-    else:
-        import nice_ext
-        raw = nice_ext.api.read(path, config=config)
-    return raw
-
-def _read_ica(icapath, icaconfig):
-    if icaconfig is None:
-        ica = mne.preprocessing.read_ica(icapath)
-    else:
-        import nice_ext
-        ica = nice_ext.api.read(icapath, config=icaconfig)
-    return ica
-
-if raw is True:
-    suffix = '-raw.fif'
-    inst = _read_raw(path, config)
-    fname = inst.filenames[0]
-    if fname.endswith('-ica-raw.fif'):
-        suffix = '-ica-raw.fif'
+if path.is_file():
+    # If the path is a file, use it
+    fnames = [path]
 else:
-    suffix = '-epo.fif'
-    inst = _read_epochs(path, config)
-    fname = inst.filename
-    if fname.endswith('-ica-epo.fif'):
-        suffix = '-ica-epo.fif'
-reject(path, inst)
-nname = icaname
-if icaname == 'auto':
+    if pattern is None:
+        if raw is True:
+            pattern = "**/raw/**/*_eeg.fif"
+        else:
+            pattern = "**/eeg/**/*eeg_epo.fif"
+        logger.info(f"No pattern provided. Using default pattern {pattern}.")
+    fnames = path.glob(pattern)
+
+reject_type = "raws" if raw is True else "epochs"
+
+for t_fname in fnames:
+    ica_fname = t_fname.parent / t_fname.name.replace(".fif", "-ica.fif")
+    # We need an ICA decomposition
+    if not ica_fname.exists():
+        logger.info(f"ICA file {ica_fname} does not exist. Skipping.")
+        continue
+
+    # In order to apply, we need the file to be cleaned
+    if apply and not is_cleaned(t_fname, "icas"):
+        logger.info(f"Cannot apply ICA to {t_fname}. Not cleaned. Skipping.")
+
+    # Skip if we don't need to redo
+    if not apply and is_cleaned(t_fname, "icas") and not redo:
+        logger.info(f"File {t_fname} already cleaned. Skipping.")
+        continue
+
+    # Check if it was previously cleaned
+    if not is_cleaned(t_fname, reject_type):
+        logger.info(
+            f"File {t_fname} not cleaned. Please do the raw/epoch cleaning first. Skipping."
+        )
+        continue
+
     if raw is True:
-        nname = op.basename(fname).replace(suffix, '-raw-ica.fif')
+        inst = mne.io.read_raw_fif(t_fname, preload=True)
     else:
-        nname = op.basename(fname).replace(suffix, '-epo-ica.fif')
-ica = _read_ica(op.join(op.dirname(path), nname), icaconfig)
+        inst = mne.read_epochs(t_fname, preload=True)
 
-inst.pick_channels(ica.ch_names)
+    reject(path, inst)
 
-rname = results
-if results == 'auto':
-    if raw is True:
-        rname = fname.replace(suffix, '-raw-ica.json')
+    ica = mne.preprocessing.read_ica(ica_fname, verbose=True)
+
+    inst.pick_channels(ica.ch_names)
+
+    results_fname = ica_fname.with_suffix(".json")
+
+    if interactive is False and results_fname.exists():
+        with open(results_fname, "r") as f:
+            rejected = json.load(f)
+        ica.exclude = rejected["reject"]
+        update_log(t_fname, ica)
+    elif interactive is True:
+        # TODO: Plot ica sources
+        reject(t_fname, ica)
+        ica.plot_sources(inst, block=True)
+        update_log(t_fname, ica)
+
     else:
-        rname = fname.replace(suffix, '-epo-ica.json')
+        reject(t_fname, ica)
+        report = create_ica_report(ica, inst, t_fname, ncomponents=ncomps)
+        report_fname = ica_fname.parent / ica_fname.name.replace(
+            "-ica.fif", "-ica-report.html"
+        )
 
-if interactive is False and results is not None:
-    with open(rname, 'r') as f:
-        rejected = json.load(f)
-    ica.exclude = rejected['reject']
-    update_log(op.join(op.dirname(path), nname), ica)
-elif interactive is True:
-    # TODO: Plot ica sources
-    reject(op.join(op.dirname(path), nname), ica)
-    ica.plot_sources(inst, block=True)
-    update_log(op.join(op.dirname(path), nname), ica)
-
-else:
-    reject(path, ica)
-    report = create_ica_report(ica, inst, nname, ncomponents=ncomps)
-    report_fname = op.basename(nname).replace('-ica.fif', '-ica-report.html')
-    
-    report.save(op.join(op.dirname(path), report_fname), 
-                overwrite=True, open_browser=False)
+        report.save(report_fname, overwrite=True, open_browser=False)

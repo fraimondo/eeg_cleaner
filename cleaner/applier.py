@@ -21,13 +21,34 @@
 # applications.
 #
 
-import os.path as op
-import numpy as np
-
 import mne
 from mne.utils import logger
 
-from .io import read_log, save_log, _check_epochs_params, _check_ica_params
+from .io import (
+    _check_epochs_params,
+    _check_ica_params,
+    _get_json_fname,
+    read_log,
+)
+
+
+def is_cleaned(path, kind):
+    if kind not in ["raws", "epochs", "icas"]:
+        raise ValueError("Kind must be one of: raw, epochs or ica")
+    json_fname = _get_json_fname(path)
+    logger.info(f"Checking if {path} is cleaned")
+    if not json_fname.exists():
+        logger.info(f"No {json_fname} file found. Not cleaned.")
+        return False
+
+    logger.info(f"Checking if cleaned in {json_fname}")
+    logs = read_log(path.parent)
+    t_log = logs[kind]
+    if path.name not in t_log:
+        logger.info(f"No log found for {path.name}. Not cleaned.")
+        return False
+    logger.info(f"Log found for {path.name}. Cleaned.")
+    return True
 
 
 def reject(path, inst, required=False):
@@ -35,32 +56,30 @@ def reject(path, inst, required=False):
     Apply the previously selected rejection (channels or epochs) to
     the instance
     """
-    json_fname = op.join(op.dirname(path), 'eeg_cleaner.json') 
-    if not op.exists(json_fname) and required is True:
-        raise ValueError(
-            'Missing eeg_cleaner.json. Did you clean this subject?')
+
+    json_fname = _get_json_fname(path)
+    if not json_fname.exists() and required is True:
+        raise ValueError("Missing eeg_cleaner.json. Did you clean this subject?")
 
     logs = read_log(path)
     if isinstance(inst, mne.io.BaseRaw):
-        fname = op.basename(inst.filenames[0])
-        t_log = logs['raws'].get(fname, {})
-        old_bads = t_log.get('bads', [])
-        mix_bads = list(set(old_bads + inst.info['bads']))
-        inst.info['bads'] = mix_bads
-        logger.info(
-            'Setting previous bad channels {}'.format(inst.info['bads']))
+        fname = inst.filenames[0].name
+        t_log = logs["raws"].get(fname, {})
+        old_bads = t_log.get("bads", [])
+        mix_bads = list(set(old_bads + inst.info["bads"]))
+        inst.info["bads"] = mix_bads
+        logger.info("Setting previous bad channels {}".format(inst.info["bads"]))
 
     elif isinstance(inst, mne.BaseEpochs):
-        fname = op.basename(inst.filename)
-        t_log = logs['epochs'].get(fname, {})
+        fname = inst.filename.name
+        t_log = logs["epochs"].get(fname, {})
         _check_epochs_params(inst, t_log)
-        old_bads = t_log.get('bads', [])
-        mix_bads = list(set(old_bads + inst.info['bads']))
-        inst.info['bads'] = mix_bads
-        logger.info(
-            'Setting previous bad channels {}'.format(inst.info['bads']))
+        old_bads = t_log.get("bads", [])
+        mix_bads = list(set(old_bads + inst.info["bads"]))
+        inst.info["bads"] = mix_bads
+        logger.info("Setting previous bad channels {}".format(inst.info["bads"]))
 
-        prev_selection = t_log.get('selection', inst.selection)
+        prev_selection = t_log.get("selection", inst.selection)
         to_drop = [x for x in inst.selection if x not in prev_selection]
         drop_idx = []
         cur_idx = 0
@@ -69,14 +88,13 @@ def reject(path, inst, required=False):
                 if i_epoch in to_drop:
                     drop_idx.append(cur_idx)
                 cur_idx += 1
-        logger.info('Dropping previous bad epochs {}'.format(to_drop))
-        inst.drop(drop_idx, reason='Inspection')
+        logger.info("Dropping previous bad epochs {}".format(to_drop))
+        inst.drop(drop_idx, reason="Inspection")
     elif isinstance(inst, mne.preprocessing.ICA):
-        fname = op.basename(path)
-        t_log = logs['icas'].get(fname, {})
+        fname = path.name
+        t_log = logs["icas"].get(fname, {})
         _check_ica_params(inst, t_log)
-        inst.exclude = t_log.get('exclude', [])
-        logger.info('Excluding components: {}'.format(inst.exclude))
+        inst.exclude = t_log.get("exclude", [])
+        logger.info("Excluding components: {}".format(inst.exclude))
 
     return inst
-

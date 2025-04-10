@@ -27,7 +27,7 @@ from pathlib import Path
 import mne
 from mne.utils import logger
 
-from cleaner import reject, update_log
+from cleaner import reject, update_log, is_cleaned
 from cleaner.utils import configure_logging, remove_file_logging
 
 # Read a raw file, plot and select bad channels.
@@ -43,8 +43,7 @@ parser.add_argument(
     metavar="path",
     nargs=1,
     type=str,
-    help="Path with the file or the subjects folder (if using "
-    "NICE Extensions package).",
+    help="Path with the file or the BIDS directory.",
     required=True,
 )
 
@@ -84,28 +83,40 @@ parser.add_argument(
 )
 
 parser.add_argument(
-    "--config",
-    metavar="config",
+    "--pattern",
+    metavar="pattern",
     type=str,
     nargs="?",
     default=None,
     help=(
-        "NICE Extensions config to use for reading. "
-        "Defaults to None (do not use NICE Extensions)"
+        "Pattern to use to select the files. "
+        "If None, a default RAW fif pattern will be used. "
     ),
 )
 
+parser.add_argument(
+    "--redo",
+    action="store_true",
+    help=(
+        "If set, the script will redo the cleaning even if it "
+        "has been done before."
+    ),
+)
 args = parser.parse_args()
 path = args.path
 scaling = args.scaling
 hpass = args.hpass
 lpass = args.lpass
-config = args.config
+pattern = args.pattern
+redo = args.redo
 
 if isinstance(path, list):
     path = path[0]
 
 path = Path(path)
+
+if not path.exists():
+    raise FileNotFoundError(f"Path {path} does not exist.")
 
 if isinstance(scaling, list):
     scaling = scaling[0]
@@ -116,29 +127,31 @@ if isinstance(hpass, list):
 if isinstance(lpass, list):
     lpass = lpass[0]
 
-if isinstance(config, list):
-    config = config[0]
+if isinstance(pattern, list):
+    pattern = pattern[0]
 
 configure_logging(path)
 logger.info("Started RAW cleaner")
 
-if config is None:
-    raws = mne.io.read_raw_fif(path, preload=True)
-    fname = path
+if path.is_file():
+    # If the path is a file, use it
+    raws = [path]
 else:
-    import nice_ext
+    if pattern is None:
+        pattern = "**/eeg/**/*eeg.fif"
+        logger.info(f"No pattern provided. Using default pattern {pattern}.")
+    raws = path.glob(pattern)
 
-    raws = nice_ext.api.read(path, config=config)
+for t_fname in raws:
+    if not redo and is_cleaned(t_fname, "raws"):
+        logger.info(f"File {t_fname} already cleaned. Skipping.")
+        continue
+    logger.info(f"Loading file {t_fname}")
+    t_raw = mne.io.read_raw_fif(t_fname, preload=True)
 
-if not isinstance(raws, list):
-    raws = [raws]
-
-for t_raw in raws:
-    fname = t_raw.filenames[0].name
-    logger.info(f"Cleaning {fname}")
-
+    logger.info(f"Cleaning {t_fname}")
     # Mark previous bad channels
-    reject(path, t_raw)
+    reject(t_fname, t_raw)
 
     logger.info(f"Filtering {hpass} - {lpass}")
     t_raw.filter(hpass, lpass)
@@ -147,7 +160,7 @@ for t_raw in raws:
     t_raw.plot(block=True, scalings={"eeg": scaling})
 
     # Save new channels
-    update_log(path, t_raw)
+    update_log(t_fname, t_raw)
 
 logger.info("Finished RAW cleaner")
 remove_file_logging()

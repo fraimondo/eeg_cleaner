@@ -24,5 +24,5 @@
 __version__ = '0.1.dev0'
 
 from . io import read_log, save_log, update_log
-from . applier import reject
+from . applier import reject, is_cleaned
 from . import report

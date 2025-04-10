@@ -1,33 +1,57 @@
+# NICE-EEG Cleaner
+# Copyright (C) 2019 - Authors of NICE-EEG-Cleaner
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU Affero General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU Affero General Public License for more details.
+#
+# You should have received a copy of the GNU Affero General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+# You can be released from the requirements of the license by purchasing a
+# commercial license. Buying such a license is mandatory as soon as you
+# develop commercial activities as mentioned in the GNU Affero General Public
+# License version 3 without disclosing the source code of your own
+# applications.
+#
 import mne
 import numpy as np
 
-import mne
 from mne.utils import logger
 import matplotlib.pyplot as plt
 
 
 def create_ica_report(ica, epochs, filename, ncomponents=None):
-
     try:
         import nice_ext
+
         layout, outlines = nice_ext.equipments.prepare_layout(
-            epochs.info['description'], epochs.info)
+            epochs.info["description"], epochs.info
+        )
     except ImportError:
         layout = mne.channels.make_eeg_layout(epochs.info)
-        outlines = 'head'
+        outlines = "head"
 
-    topomap_args = {'outlines': outlines, 'layout': layout}
+    topomap_args = {"outlines": outlines, "layout": layout}
 
-    json_fname = filename.replace('.fif', '.json')
+    json_fname = filename.with_suffix(".json")
 
     if ncomponents is None or ncomponents == -1:
         ncomponents = ica.n_components_
     else:
         ncomponents = min(ncomponents, ica.n_components_)
 
-    report = mne.Report(title='ICA Components')
+    logger.info(f"Plotting {ncomponents} components")
 
-    style = u"""
+    report = mne.Report(title="ICA Components")
+
+    style = """
     <style type="text/css">
         div.ica_menu,
         form.ica_select {
@@ -119,66 +143,82 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
         }
     </script>"""
 
-    report.include += style
-    fig_comps = ica.plot_components(inst=epochs, outlines=outlines,
-                                    layout=layout, picks=range(ncomponents))
+    report.add_ica(
+        ica,
+        inst=epochs,
+        picks=range(ncomponents),
+        title="ICA Components",
+    )
 
-    overall_comment = u"""
-    <div class="ica_menu">
-        <input id="ica_check" type="button" value="Summarize"
-        onclick="ica_summarize();" />
-        <div id="ica_selected"></div>
-        <input id="ica_save" type="button" value="Save to JSON"
-        onclick="ica_json();" />
-        <input type="hidden" id="json_fname" value="{0}">
+    # report.include += style
+    # fig_comps = ica.plot_components(
+    #     inst=epochs,
+    #     outlines=outlines,
+    #     picks=range(ncomponents),
+    #     show=False,
+    # )
 
-    </div>"""
+    # overall_comment = """
+    # <div class="ica_menu">
+    #     <input id="ica_check" type="button" value="Summarize"
+    #     onclick="ica_summarize();" />
+    #     <div id="ica_selected"></div>
+    #     <input id="ica_save" type="button" value="Save to JSON"
+    #     onclick="ica_json();" />
+    #     <input type="hidden" id="json_fname" value="{0}">
 
-    report.add_figs_to_section(figs=[fig_comps], captions=['Topographies'],
-                               section='Overall',
-                               comments=[overall_comment.format(json_fname)])
-    plt.close(fig_comps)
+    # </div>"""
 
-    figs_props = ica.plot_properties(epochs, picks=range(ncomponents),
-                                          topomap_args=topomap_args)
-    figs_ts = []
-    sources = ica.get_sources(epochs).get_data()
-    n_sources = sources.shape[0]
-    n_random = 5
-    n_epochs = 5
-    for i_comp in range(ncomponents):
-        logger.info('Plotting component {} of {}'.format(
-            i_comp + 1, ncomponents))
-        idx = np.random.randint(n_sources - n_epochs, size=n_random)
-        fig, axes = plt.subplots(n_random, 1, figsize=(7, 4))
-        for i, ax in zip(idx, axes):
-            data = sources[i:i+n_epochs, i_comp, :]
-            ax.plot(np.hstack(data), lw=0.5, color='k')
-            [ax.axvline(data.shape[1] * x, ls='--', lw=0.2, color='k')
-             for x in range(n_epochs)]
-        figs_ts.append(fig)
+    # report.add_figs_to_section(
+    #     figs=[fig_comps],
+    #     captions=["Topographies"],
+    #     section="Overall",
+    #     comments=[overall_comment.format(json_fname)],
+    # )
+    # plt.close(fig_comps)
 
-    eptype = list(epochs.event_id.keys())[0].split('/')[-1]
-    props_captions = ['{} - {}'.format(eptype, x) for x in range(ncomponents)]
+    # figs_props = ica.plot_properties(
+    #     epochs, picks=range(ncomponents), topomap_args=topomap_args
+    # )
+    # figs_ts = []
+    # sources = ica.get_sources(epochs).get_data()
+    # n_sources = sources.shape[0]
+    # n_random = 5
+    # n_epochs = 5
+    # for i_comp in range(ncomponents):
+    #     logger.info("Plotting component {} of {}".format(i_comp + 1, ncomponents))
+    #     idx = np.random.randint(n_sources - n_epochs, size=n_random)
+    #     fig, axes = plt.subplots(n_random, 1, figsize=(7, 4))
+    #     for i, ax in zip(idx, axes):
+    #         data = sources[i : i + n_epochs, i_comp, :]
+    #         ax.plot(np.hstack(data), lw=0.5, color="k")
+    #         [
+    #             ax.axvline(data.shape[1] * x, ls="--", lw=0.2, color="k")
+    #             for x in range(n_epochs)
+    #         ]
+    #     figs_ts.append(fig)
 
-    captions = [elt for sublist in zip(props_captions, props_captions)
-                for elt in sublist]
+    # eptype = list(epochs.event_id.keys())[0].split("/")[-1]
+    # props_captions = ["{} - {}".format(eptype, x) for x in range(ncomponents)]
 
-    ts_comments = [''] * len(figs_ts)
+    # captions = [
+    #     elt for sublist in zip(props_captions, props_captions) for elt in sublist
+    # ]
 
-    prop_comment = u"""
-    <form action="" class="ica_select">
-        <input type="radio" name="ica_{0}" value="accept" checked>Accept
-        <input type="radio" name="ica_{0}" value="reject">Reject
-    </form>"""
-    comments = [prop_comment.format(x) for x in range(ncomponents)]
-    comments = [elt for sublist in zip(comments, ts_comments)
-                for elt in sublist]
+    # ts_comments = [""] * len(figs_ts)
 
-    figs = [elt for sublist in zip(figs_props, figs_ts)
-            for elt in sublist]
-    report.add_figs_to_section(figs=figs, captions=captions,
-                               comments=comments, section='Details')
-    [plt.close(x) for x in figs_props]
+    # prop_comment = """
+    # <form action="" class="ica_select">
+    #     <input type="radio" name="ica_{0}" value="accept" checked>Accept
+    #     <input type="radio" name="ica_{0}" value="reject">Reject
+    # </form>"""
+    # comments = [prop_comment.format(x) for x in range(ncomponents)]
+    # comments = [elt for sublist in zip(comments, ts_comments) for elt in sublist]
+
+    # figs = [elt for sublist in zip(figs_props, figs_ts) for elt in sublist]
+    # report.add_figs_to_section(
+    #     figs=figs, captions=captions, comments=comments, section="Details"
+    # )
+    # [plt.close(x) for x in figs_props]
 
     return report

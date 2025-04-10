@@ -1,0 +1,171 @@
+[build-system]
+requires = [
+  "setuptools >= 61.0.0",
+  "wheel",
+  "setuptools_scm[toml] >= 6.2"
+]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cleaner"
+description = "EEG Cleaner"
+readme = "README.md"
+requires-python = ">=3.8"
+license = {text = "AGPL-3.0-only"}
+authors = [
+    { name = "Fede Raimondo", email = "f.raimondo@fz-juelich.de" },
+]
+maintainers = [
+    { name = "Fede Raimondo", email = "f.raimondo@fz-juelich.de" },
+]
+keywords = [
+    "eeg",
+]
+classifiers = [
+    "Development Status :: 5 - Production/Stable",
+    "Intended Audience :: Science/Research",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved",
+    "Natural Language :: English",
+    "Topic :: Software Development",
+    "Topic :: Scientific/Engineering",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "mne>=1.9.0",
+]
+
+dynamic = ["version"]
+
+[tool.setuptools_scm]
+# can be empty if no extra settings are needed, presence enables setuptools-scm
+
+[project.urls]
+homepage = "https://github.com/fraimondo/eeg_cleaner"
+repository = "https://github.com/fraimondo/eeg_cleaner"
+
+
+################
+# Tool configs #
+################
+
+[tool.setuptools]
+packages = ["cleaner"]
+
+
+[tool.black]
+line-length = 79
+target-version = ["py39", "py310", "py311", "py312"]
+
+[tool.codespell]
+skip = "*/auto_examples/*,*.html,.git/,*.pyc,*/_build/*,*/api/generated/*.examples,julearn/external/*"
+count = ""
+quiet-level = 3
+ignore-words = "ignore_words.txt"
+interactive = 0
+builtin = "clear,rare,informal,names,usage,code"
+
+[tool.ruff]
+line-length = 79
+extend-exclude = [
+    "__init__.py",
+    "docs",
+    "examples",
+    "external",
+]
+
+[tool.ruff.lint]
+select = [
+    # flake8-bugbear
+    "B",
+    # flake8-blind-except
+    "BLE",
+    # flake8-comprehensions
+    "C4",
+    # mccabe
+    "C90",
+    # pydocstyle
+    "D",
+    # pycodestyle errors
+    "E",
+    # pyflakes
+    "F",
+    # isort
+    "I",
+    # pep8-naming
+    "N",
+    # pygrep-hooks
+    "PGH",
+    # ruff
+    "RUF",
+    # flake8-type-checking
+    "TCH",
+    # pyupgrade
+    "UP",
+    # pycodestyle warnings
+    "W",
+    # flake8-2020
+    "YTT",
+]
+extend-ignore = [
+    # Use of `functools.lru_cache` or `functools.cache` on methods can lead to
+    # memory leaks. The cache may retain instance references, preventing garbage
+    # collection.
+    "B019",
+    # abstract class with no abstract methods
+    "B024",
+    "D202",
+    # missing docstring in __init__, incompatible with numpydoc
+    "D107",
+    # use r""" if any backslashes in a docstring
+    "D301",
+    # class names should use CapWords convention
+    "N801",
+    # function name should be lowercase
+    "N802",
+    # variable in function should be lowercase
+    "N806",
+    # use specific rule codes when ignoring type issues
+    "PGH003",
+]
+
+[tool.ruff.lint.isort]
+lines-after-imports = 2
+known-first-party = ["julearn"]
+known-third-party =[
+    "numpy",
+    "pandas",
+    "sklearn",
+    "statsmodels",
+    "bokeh",
+    "panel",
+    "param",
+    "deslib",
+    "pytest",
+    "mne",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 20
+
+
+## Configure pyright to ignore assignment types until scikit-learn stubs are updated
+[tool.pyright]
+reportAssignmentType = "none"
+exclude = [
+    "docs/auto_examples/",
+    "*.html",
+    ".git/",
+    "*.pyc,",
+    "*/_build/*",
+    "*/api/generated/*.examples",
+    "build/",
+    "examples/XX_disabled/",
+    ".tox",
+    ".eggs",
+    "examples/",  # Lots of problems due to bad stubs, avoid filling the example with # type:ignore
+    "scratch/",  # place to prototype, not to be checked
+]

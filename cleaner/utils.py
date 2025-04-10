@@ -46,7 +46,9 @@ def configure_logging(path):
             logger.removeHandler(h)
             print("Removing handler {}".format(h))
         else:
-            h.setFormatter(logging.Formatter(file_output_format, datefmt=date_format))
+            h.setFormatter(
+                logging.Formatter(file_output_format, datefmt=date_format)
+            )
     lh = logging.StreamHandler(WrapStdOut())
     lh.setFormatter(logging.Formatter(output_format))
     logger.addHandler(lh)

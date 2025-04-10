@@ -56,7 +56,9 @@ parser.add_argument(
     type=float,
     nargs="?",
     default=default_scaling,
-    help=(f"Scaling to use when plotting EEG signals (Default {default_scaling})"),
+    help=(
+        f"Scaling to use when plotting EEG signals (Default {default_scaling})"
+    ),
 )
 
 
@@ -100,7 +102,9 @@ parser.add_argument(
     dest="raw",
     default=False,
     action="store_true",
-    help=("If True, read a raw file instead of an epochs files (Default is False)."),
+    help=(
+        "If True, read a raw file instead of an epochs files (Default is False)."
+    ),
 )
 
 parser.add_argument(
@@ -114,7 +118,9 @@ parser.add_argument(
 parser.add_argument(
     "--redo",
     action="store_true",
-    help=("If set, the script will redo the cleaning even if it has been done before."),
+    help=(
+        "If set, the script will redo the cleaning even if it has been done before."
+    ),
 )
 
 
@@ -178,32 +184,38 @@ for t_fname in fnames:
         logger.info(f"ICA file {ica_fname} does not exist. Skipping.")
         continue
 
+    is_ica_cleaned = is_cleaned(ica_fname, "icas")
+
     # In order to apply, we need the file to be cleaned
-    if apply and not is_cleaned(t_fname, "icas"):
+    if apply and not is_ica_cleaned:
         logger.info(f"Cannot apply ICA to {t_fname}. Not cleaned. Skipping.")
 
     # Skip if we don't need to redo
-    if not apply and is_cleaned(t_fname, "icas") and not redo:
+    if not apply and is_ica_cleaned and not redo:
         logger.info(f"File {t_fname} already cleaned. Skipping.")
         continue
+
 
     # Check if it was previously cleaned
     if not is_cleaned(t_fname, reject_type):
         logger.info(
-            f"File {t_fname} not cleaned. Please do the raw/epoch cleaning first. Skipping."
+            f"File {t_fname} not cleaned. Please do the raw/epoch cleaning "
+            "first. Skipping."
         )
         continue
 
     if raw is True:
+        logger.info("Loading raw file")
         inst = mne.io.read_raw_fif(t_fname, preload=True)
     else:
+        logger.info("Loading epochs file")
         inst = mne.read_epochs(t_fname, preload=True)
 
     reject(path, inst)
 
     ica = mne.preprocessing.read_ica(ica_fname, verbose=True)
 
-    inst.pick_channels(ica.ch_names)
+    inst.pick(ica.ch_names)
 
     results_fname = ica_fname.with_suffix(".json")
 
@@ -220,7 +232,7 @@ for t_fname in fnames:
 
     else:
         reject(t_fname, ica)
-        report = create_ica_report(ica, inst, t_fname, ncomponents=ncomps)
+        report = create_ica_report(ica, inst, ica_fname, ncomponents=ncomps)
         report_fname = ica_fname.parent / ica_fname.name.replace(
             "-ica.fif", "-ica-report.html"
         )

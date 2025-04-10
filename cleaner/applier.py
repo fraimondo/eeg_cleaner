@@ -59,7 +59,9 @@ def reject(path, inst, required=False):
 
     json_fname = _get_json_fname(path)
     if not json_fname.exists() and required is True:
-        raise ValueError("Missing eeg_cleaner.json. Did you clean this subject?")
+        raise ValueError(
+            "Missing eeg_cleaner.json. Did you clean this subject?"
+        )
 
     logs = read_log(path)
     if isinstance(inst, mne.io.BaseRaw):
@@ -68,7 +70,9 @@ def reject(path, inst, required=False):
         old_bads = t_log.get("bads", [])
         mix_bads = list(set(old_bads + inst.info["bads"]))
         inst.info["bads"] = mix_bads
-        logger.info("Setting previous bad channels {}".format(inst.info["bads"]))
+        logger.info(
+            "Setting previous bad channels {}".format(inst.info["bads"])
+        )
 
     elif isinstance(inst, mne.BaseEpochs):
         fname = inst.filename.name
@@ -77,7 +81,9 @@ def reject(path, inst, required=False):
         old_bads = t_log.get("bads", [])
         mix_bads = list(set(old_bads + inst.info["bads"]))
         inst.info["bads"] = mix_bads
-        logger.info("Setting previous bad channels {}".format(inst.info["bads"]))
+        logger.info(
+            "Setting previous bad channels {}".format(inst.info["bads"])
+        )
 
         prev_selection = t_log.get("selection", inst.selection)
         to_drop = [x for x in inst.selection if x not in prev_selection]

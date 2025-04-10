@@ -20,25 +20,17 @@
 # License version 3 without disclosing the source code of your own
 # applications.
 #
+import matplotlib.pyplot as plt
 import mne
 import numpy as np
-
 from mne.utils import logger
-import matplotlib.pyplot as plt
+from mne.viz.ica import _create_properties_layout
 
 
 def create_ica_report(ica, epochs, filename, ncomponents=None):
-    try:
-        import nice_ext
+    outlines = "head"
 
-        layout, outlines = nice_ext.equipments.prepare_layout(
-            epochs.info["description"], epochs.info
-        )
-    except ImportError:
-        layout = mne.channels.make_eeg_layout(epochs.info)
-        outlines = "head"
-
-    topomap_args = {"outlines": outlines, "layout": layout}
+    topomap_args = {"outlines": outlines}
 
     json_fname = filename.with_suffix(".json")
 
@@ -49,7 +41,7 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
 
     logger.info(f"Plotting {ncomponents} components")
 
-    report = mne.Report(title="ICA Components")
+    report = mne.Report(title="Cleaning report")
 
     style = """
     <style type="text/css">
@@ -75,26 +67,68 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
                     $(this).css('width', '50%').css('float', 'left').css('height', '800px');
                 }
             )
+            window.sessionStorage.ica_to_reject = ''
+            
+            $('#accordion-collapse-Properties-ICA_properties .carousel-item').each(
+                function(index, value) {
+                thtml= '<div class="ica_select">'+
+                '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_accept" ica='+index+' value="accept" autocomplete="off" checked>'+
+                '<label class="btn btn-outline-success" for="ica_'+index+'_accept">Accept</label>' +
+                '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_reject" ica='+index+' value="reject" autocomplete="off">'+
+                '<label class="btn btn-outline-danger" for="ica_'+index+'_reject">Reject</label>' +
+                
+                '</div>'
+                
+                $(this).append(thtml);
+                }
+            )
+
+            $('input[type=radio].ica-selector').change(function() {
+                ica_to_reject = JSON.parse(sessionStorage.ica_to_reject || '[]');
+                tval = this.value;
+                tica = this.getAttribute('ica');
+                console.log(tval);
+                console.log(tica);
+                if (tval == 'reject') {
+                    ica_to_reject.push(tica);
+                } else {
+                    ica_to_reject = ica_to_reject.filter(
+                        function(e) { return e != tica; });
+                }
+                console.log(ica_to_reject);
+                sessionStorage.ica_to_reject = JSON.stringify(ica_to_reject);
+                ica_summarize()
+            });
+
+            $( "#accordion-collapse-Properties-ICA_properties" ).on( "keypress", function(event) {
+                if (event.originalEvent.key == "r") {
+                    t_name = $("#accordion-collapse-Properties-ICA_properties div.carousel-item.active input")[0].name
+                    $("input[type='radio'][name='"+t_name+"']").not(':checked').prop("checked", true).trigger("change");
+                }
+            } );
         });
 
+
         function ica_summarize() {
-            var to_reject = $('input[value="reject"]:checked').map(
-                function(o, i) {return parseInt(i.name.replace('ica_', ''));});
             var to_render = '<h3> Components to reject</h3><br />'
-            for (var ica_comp = 0; ica_comp < to_reject.length; ica_comp ++) {
+            ica_to_reject = JSON.parse(sessionStorage.ica_to_reject || '[]');
+            ica_to_reject.sort();
+            for (var ica_comp = 0; ica_comp < ica_to_reject.length; ica_comp ++) {
                 if (ica_comp > 0) {
                     to_render += ' - ';
                 }
-                to_render +=  to_reject[ica_comp];
+                to_render += ica_to_reject[ica_comp];
             }
+            console.log(to_render);
             $('#ica_selected').html(to_render);
         }
 
         function ica_json() {
-            var to_reject = $('input[value="reject"]:checked').map(
-                function(o, i) {return parseInt(i.name.replace('ica_', ''));});
+
+            var to_reject = JSON.parse(sessionStorage.ica_to_reject || '[]');
+            to_reject.sort();
             var txtFile = $('#json_fname').val();
-            var data = {reject: to_reject.get()}
+            var data = {reject: to_reject}
             var str = JSON.stringify(data);
 
             download(str, txtFile, 'text/plain');
@@ -143,82 +177,85 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
         }
     </script>"""
 
-    report.add_ica(
-        ica,
-        inst=epochs,
-        picks=range(ncomponents),
-        title="ICA Components",
+    report.add_epochs(
+        epochs=epochs,
+        title="Epochs",
     )
 
-    # report.include += style
-    # fig_comps = ica.plot_components(
-    #     inst=epochs,
-    #     outlines=outlines,
-    #     picks=range(ncomponents),
-    #     show=False,
-    # )
+    report.include += style
+    fig_comps = ica.plot_components(
+        inst=epochs,
+        outlines=outlines,
+        picks=range(ncomponents),
+        show=False,
+    )
 
-    # overall_comment = """
-    # <div class="ica_menu">
-    #     <input id="ica_check" type="button" value="Summarize"
-    #     onclick="ica_summarize();" />
-    #     <div id="ica_selected"></div>
-    #     <input id="ica_save" type="button" value="Save to JSON"
-    #     onclick="ica_json();" />
-    #     <input type="hidden" id="json_fname" value="{0}">
+    overall_comment = """
+    <div class="ica_menu">
+        <div id="ica_selected"></div>
+        <input id="ica_save" type="button" class="btn btn-primary" value="Save to JSON"
+        onclick="ica_json();" />
+        <input type="hidden" id="json_fname" value="{0}">
 
-    # </div>"""
+    </div>"""
 
-    # report.add_figs_to_section(
-    #     figs=[fig_comps],
-    #     captions=["Topographies"],
-    #     section="Overall",
-    #     comments=[overall_comment.format(json_fname)],
-    # )
-    # plt.close(fig_comps)
+    report.add_figure(
+        fig=fig_comps,
+        title="ICA components",
+        caption="Topographies",
+        section="Overall",
+    )
+    report.add_html(
+        html=overall_comment.format(json_fname.name),
+        title="ICA components",
+        section="Overall",
+    )
+    plt.close(fig_comps)
 
-    # figs_props = ica.plot_properties(
-    #     epochs, picks=range(ncomponents), topomap_args=topomap_args
-    # )
-    # figs_ts = []
-    # sources = ica.get_sources(epochs).get_data()
-    # n_sources = sources.shape[0]
-    # n_random = 5
-    # n_epochs = 5
-    # for i_comp in range(ncomponents):
-    #     logger.info("Plotting component {} of {}".format(i_comp + 1, ncomponents))
-    #     idx = np.random.randint(n_sources - n_epochs, size=n_random)
-    #     fig, axes = plt.subplots(n_random, 1, figsize=(7, 4))
-    #     for i, ax in zip(idx, axes):
-    #         data = sources[i : i + n_epochs, i_comp, :]
-    #         ax.plot(np.hstack(data), lw=0.5, color="k")
-    #         [
-    #             ax.axvline(data.shape[1] * x, ls="--", lw=0.2, color="k")
-    #             for x in range(n_epochs)
-    #         ]
-    #     figs_ts.append(fig)
+    all_figs = []
+    captions = []
+    sources = ica.get_sources(epochs).get_data()
+    n_sources = sources.shape[0]
+    n_random = 5
+    n_epochs = 5
+    for t_comp in range(ncomponents):
+        logger.info(f"Plotting component {t_comp+1} of {ncomponents}")
+        fig = plt.figure(layout="constrained", figsize=(14, 6))
+        subfigs = fig.subfigures(1, 2, hspace=0.07)
+        t_prop_fig, axes = _create_properties_layout(fig=subfigs[0])
+        ica.plot_properties(
+            inst=epochs,
+            picks=t_comp,
+            axes=axes,
+            topomap_args=topomap_args,
+            show=False,
+        )
+        idx = np.random.randint(n_sources - n_epochs, size=n_random)
+        axes = subfigs[1].subplots(n_random, 1)
+        for i, ax in zip(idx, axes):
+            data = sources[i : i + n_epochs, t_comp, :]
+            ax.plot(np.hstack(data), lw=0.5, color="k")
+            [
+                ax.axvline(data.shape[1] * x, ls="--", lw=0.2, color="k")
+                for x in range(n_epochs)
+            ]
+            ax.set_xticks(
+                ticks=[x * data.shape[1] for x in range(n_epochs)],
+                labels=[x * epochs.times[-1] for x in range(n_epochs)],
+            )
+        ax.set_ylabel("Amplitude (uV)")
+        ax.set_xlabel("Time (s)")
+        all_figs.append(fig)
+        captions.append(
+            f"ICA component {t_comp+1} topographies and time series"
+        )
 
-    # eptype = list(epochs.event_id.keys())[0].split("/")[-1]
-    # props_captions = ["{} - {}".format(eptype, x) for x in range(ncomponents)]
-
-    # captions = [
-    #     elt for sublist in zip(props_captions, props_captions) for elt in sublist
-    # ]
-
-    # ts_comments = [""] * len(figs_ts)
-
-    # prop_comment = """
-    # <form action="" class="ica_select">
-    #     <input type="radio" name="ica_{0}" value="accept" checked>Accept
-    #     <input type="radio" name="ica_{0}" value="reject">Reject
-    # </form>"""
-    # comments = [prop_comment.format(x) for x in range(ncomponents)]
-    # comments = [elt for sublist in zip(comments, ts_comments) for elt in sublist]
-
-    # figs = [elt for sublist in zip(figs_props, figs_ts) for elt in sublist]
-    # report.add_figs_to_section(
-    #     figs=figs, captions=captions, comments=comments, section="Details"
-    # )
-    # [plt.close(x) for x in figs_props]
+    report.add_figure(
+        fig=all_figs,
+        caption=captions,
+        section="Properties",
+        title="ICA properties",
+    )
+    [plt.close(x) for x in all_figs]
 
     return report

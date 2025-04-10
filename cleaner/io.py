@@ -20,10 +20,11 @@
 # License version 3 without disclosing the source code of your own
 # applications.
 #
-from pathlib import Path
 import json
-import numpy as np
+from pathlib import Path
+
 import mne
+import numpy as np
 from mne.utils import logger
 
 
@@ -71,8 +72,8 @@ def read_log(path):
         if prev_hash != git_hash:
             logger.warning(
                 "The specified subject was cleaned with a previous "
-                "version of EEG cleaner. ({}). The new version ({}) "
-                "might fail.".format(prev_hash, git_hash)
+                f"version of EEG cleaner. ({prev_hash}). The new version "
+                f"({git_hash}) might fail."
             )
 
     save_log(path, logs)
@@ -100,8 +101,8 @@ def save_log(path, logs):
         if prev_hash != git_hash:
             logger.warning(
                 "The specified subject was cleaned with a previous "
-                "version of EEG cleaner. ({}). The new version ({}) "
-                "might fail.".format(prev_hash, git_hash)
+                f"version of EEG cleaner. ({prev_hash}). The new version "
+                f"({git_hash}) might fail."
             )
     with open(json_fname, "w") as f:
         json.dump(logs, f)
@@ -117,7 +118,7 @@ def update_log(path, inst):
         fname = inst.filenames[0].name
         t_log = logs["raws"].get(fname, {})
         t_log["bads"] = inst.info["bads"]
-        logger.info("Updating bad channels {}".format(t_log["bads"]))
+        logger.info(f"Updating bad channels {t_log['bads']}")
         if fname not in logs["raws"]:
             logs["raws"][fname] = t_log
     elif isinstance(inst, mne.BaseEpochs):
@@ -125,13 +126,15 @@ def update_log(path, inst):
         t_log = logs["epochs"].get(fname, {})
         _check_epochs_params(inst, t_log)
         t_log["bads"] = inst.info["bads"]
-        logger.info("Updating bad channels {}".format(t_log["bads"]))
+        logger.info(f"Updating bad channels {t_log['bads']}")
 
         t_log["selection"] = inst.selection.tolist()
         dropped = [
-            i for i, x in enumerate(inst.drop_log) if "Inspection" in x or "USER" in x
+            i
+            for i, x in enumerate(inst.drop_log)
+            if "Inspection" in x or "USER" in x
         ]
-        logger.info("Updating bad epochs {}".format(dropped))
+        logger.info(f"Updating bad epochs {dropped}")
 
         if fname not in logs["epochs"]:
             logs["epochs"][fname] = t_log
@@ -155,15 +158,13 @@ def _check_epochs_params(epochs, t_log):
     else:
         if epochs.tmin != t_log["params"]["tmin"]:
             raise ValueError(
-                "Epochs were cut differently: " "tmin was {} and now is {}".format(
-                    t_log["params"]["tmin"], epochs.tmin
-                )
+                "Epochs were cut differently: "
+                f"tmin was {t_log['params']['tmin']} and now is {epochs.tmin}"
             )
         if epochs.tmax != t_log["params"]["tmax"]:
             raise ValueError(
-                "Epochs were cut differently: " "tmax was {} and now is {}".format(
-                    t_log["params"]["tmax"], epochs.tmax
-                )
+                "Epochs were cut differently: "
+                f"tmax was { t_log['params']['tmax']} and now is {epochs.tmax}"
             )
 
         # Check events (saved events is subset of epochs.events)
@@ -171,8 +172,9 @@ def _check_epochs_params(epochs, t_log):
         prev_selection = t_log.get("selection", np.arange(len(epochs)))
         inter = np.intersect1d(this_selection, prev_selection)
         this_events = epochs.events[:, 0].tolist()
-        to_check = [this_events[i] for i, x in enumerate(this_selection) if x in inter]
-        # to_check = [i for i, x in enumerate(this_selection) if x in prev_selection]
+        to_check = [
+            this_events[i] for i, x in enumerate(this_selection) if x in inter
+        ]
         prev_events = t_log["params"]["events"]
         if not all(x in prev_events for x in to_check):
             raise ValueError("Epochs event samples do not match")

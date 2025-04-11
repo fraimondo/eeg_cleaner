@@ -222,7 +222,8 @@ for t_fname in fnames:
     if interactive is False and results_fname.exists():
         with open(results_fname, "r") as f:
             rejected = json.load(f)
-        ica.exclude = rejected["reject"]
+        to_exclude = [int(x) for x in rejected["reject"]]
+        ica.exclude = to_exclude
         update_log(t_fname, ica)
     elif interactive is True:
         # TODO: Plot ica sources

@@ -20,6 +20,8 @@
 # License version 3 without disclosing the source code of your own
 # applications.
 #
+import json
+
 import matplotlib.pyplot as plt
 import mne
 import numpy as np
@@ -43,7 +45,7 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
 
     report = mne.Report(title="Cleaning report")
 
-    style = """
+    style_start = """
     <style type="text/css">
         div.ica_menu,
         form.ica_select {
@@ -67,22 +69,36 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
                     $(this).css('width', '50%').css('float', 'left').css('height', '800px');
                 }
             )
-            window.sessionStorage.ica_to_reject = ''
-            
+    """
+    to_exclude = [f"{x}" for x in ica.exclude]
+    style_start += (
+        f"window.sessionStorage.ica_to_reject = '{json.dumps(to_exclude)}';"
+    )
+
+    style_start += """
+            ica_to_reject = JSON.parse(sessionStorage.ica_to_reject || '[]');
             $('#accordion-collapse-Properties-ICA_properties .carousel-item').each(
                 function(index, value) {
-                thtml= '<div class="ica_select">'+
-                '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_accept" ica='+index+' value="accept" autocomplete="off" checked>'+
-                '<label class="btn btn-outline-success" for="ica_'+index+'_accept">Accept</label>' +
-                '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_reject" ica='+index+' value="reject" autocomplete="off">'+
-                '<label class="btn btn-outline-danger" for="ica_'+index+'_reject">Reject</label>' +
-                
-                '</div>'
-                
-                $(this).append(thtml);
+                    checked_accept = ""
+                    checked_reject = ""
+                    if (ica_to_reject.includes(index.toString())) {
+                        checked_accept = "";
+                        checked_reject = "checked";
+                    } else {
+                        checked_accept = "checked";
+                        checked_reject = "";
+                    }
+                    thtml= '<div class="ica_select">'+
+                    '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_accept" ica='+index+' value="accept" autocomplete="off" '+checked_accept+'>'+
+                    '<label class="btn btn-outline-success" for="ica_'+index+'_accept">Accept</label>' +
+                    '<input type="radio" class="btn-check ica-selector" name="radio_ica'+index +'" id="ica_'+index+'_reject" ica='+index+' value="reject" autocomplete="off" '+checked_reject+'>'+
+                    '<label class="btn btn-outline-danger" for="ica_'+index+'_reject">Reject</label>' +
+                    
+                    '</div>'
+                    
+                    $(this).append(thtml);
                 }
             )
-
             $('input[type=radio].ica-selector').change(function() {
                 ica_to_reject = JSON.parse(sessionStorage.ica_to_reject || '[]');
                 tval = this.value;
@@ -106,6 +122,7 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
                     $("input[type='radio'][name='"+t_name+"']").not(':checked').prop("checked", true).trigger("change");
                 }
             } );
+            ica_summarize();
         });
 
 
@@ -177,12 +194,33 @@ def create_ica_report(ica, epochs, filename, ncomponents=None):
         }
     </script>"""
 
+    report.include += style_start
+
+    unique_events = np.unique(epochs.events[:, 2])
+    t_event_id = {
+        k: v for k, v in epochs.event_id.items() if v in unique_events
+    }
+    report.add_events(
+        events=epochs.events,
+        event_id=t_event_id,
+        title='Events from "events"',
+        sfreq=epochs.info["sfreq"],
+    )
+
     report.add_epochs(
         epochs=epochs,
         title="Epochs",
     )
 
-    report.include += style
+    report._add_ica_overlay(
+        ica=ica,
+        inst=epochs,
+        image_format=report.image_format,
+        section="ICA Overlay",
+        replace=True,
+        tags=["ica_overlay"],
+    )
+
     fig_comps = ica.plot_components(
         inst=epochs,
         outlines=outlines,

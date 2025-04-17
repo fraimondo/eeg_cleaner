@@ -211,7 +211,7 @@ for t_fname in fnames:
         logger.info("Loading epochs file")
         inst = mne.read_epochs(t_fname, preload=True)
 
-    reject(path, inst)
+    reject(t_fname, inst, required=True)
 
     ica = mne.preprocessing.read_ica(ica_fname, verbose=True)
 

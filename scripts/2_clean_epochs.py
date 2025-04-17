@@ -53,7 +53,9 @@ parser.add_argument(
     type=float,
     nargs="?",
     default=default_scaling,
-    help=(f"Scaling to use when plotting EEG signals (Default {default_scaling})"),
+    help=(
+        f"Scaling to use when plotting EEG signals (Default {default_scaling})"
+    ),
 )
 
 parser.add_argument(
@@ -63,6 +65,14 @@ parser.add_argument(
     nargs="?",
     default=default_nepochs,
     help=f"Number of epochs to plot (default {default_nepochs})",
+)
+
+parser.add_argument(
+    "--nchans",
+    metavar="nchans",
+    default=20,
+    type=int,
+    help="Number of channels to plot. Default 20.",
 )
 
 
@@ -89,7 +99,9 @@ parser.add_argument(
 parser.add_argument(
     "--redo",
     action="store_true",
-    help=("If set, the script will redo the cleaning even if it has been done before."),
+    help=(
+        "If set, the script will redo the cleaning even if it has been done before."
+    ),
 )
 
 parser.add_argument(
@@ -164,7 +176,12 @@ for t_fname in epochs:
         pca = mne.decoding.UnsupervisedSpatialFilter(PCA(n_pca), average=False)
         logger.info("Fitting PCA (n_pca = {})".format(n_pca))
         picks = mne.pick_types(
-            t_epochs.info, meg=False, eeg=True, eog=False, stim=False, exclude="bads"
+            t_epochs.info,
+            meg=False,
+            eeg=True,
+            eog=False,
+            stim=False,
+            exclude="bads",
         )
         pca_data = pca.fit_transform(t_epochs.get_data()[:, picks, :])
         blank = np.zeros((pca_data.shape[0], 2, pca_data.shape[2]))
@@ -193,6 +210,7 @@ for t_fname in epochs:
         n_epochs=nepochs,
         picks=picks,
         scalings={"eeg": scaling, "misc": 1e-4},
+        n_channels=args.nchans,
     )
 
     # Save new channels

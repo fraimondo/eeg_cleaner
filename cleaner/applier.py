@@ -21,6 +21,8 @@
 # applications.
 #
 
+from warnings import warn
+
 import mne
 from mne.utils import logger
 
@@ -71,18 +73,18 @@ def reject(path, inst, required=False):
         mix_bads = list(set(old_bads + inst.info["bads"]))
         inst.info["bads"] = mix_bads
         logger.info(
-            "Setting previous bad channels {}".format(inst.info["bads"])
+            f"Setting previous bad channels {inst.info['bads']}"
         )
 
     elif isinstance(inst, mne.BaseEpochs):
-        fname = inst.filename.name
+        fname = inst.filename
         t_log = logs["epochs"].get(fname, {})
         _check_epochs_params(inst, t_log)
         old_bads = t_log.get("bads", [])
         mix_bads = list(set(old_bads + inst.info["bads"]))
         inst.info["bads"] = mix_bads
         logger.info(
-            "Setting previous bad channels {}".format(inst.info["bads"])
+            f"Setting previous bad channels {inst.info['bads']}"
         )
 
         prev_selection = t_log.get("selection", inst.selection)
@@ -98,6 +100,12 @@ def reject(path, inst, required=False):
         inst.drop(drop_idx, reason="Inspection")
     elif isinstance(inst, mne.preprocessing.ICA):
         fname = path.name
+        if not fname.endswith("_epo.fif"):
+            warn(
+                "When cleaning using ICA, the path should point to the epochs "
+                "file. This warning is raised because the path does not ends " 
+                "with -epo.fif. "
+            )
         t_log = logs["icas"].get(fname, {})
         _check_ica_params(inst, t_log)
         inst.exclude = t_log.get("exclude", [])
